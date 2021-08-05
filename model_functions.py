@@ -1,7 +1,7 @@
 """
 Model Functions
 
-Peter Turney, June 29, 2021
+Peter Turney, August 4, 2021
 """
 import golly as g
 import model_classes as mclass
@@ -1570,6 +1570,119 @@ def region_map(seed):
     border_crossing = 1
   # return the map
   return map
+#
+# extract_parts(seed, seed_map, target_region) -- returns target part of seed
+#
+def extract_parts(seed, seed_map, target_region):
+  """
+  Given a seed, a seed_map, and a target_region, extract the region of
+  the seed that corresponds to cells in seed_map that have the value
+  target_region. Reduce the size of the extracted seed by dropping empty
+  outside rows and columns.
+  """
+  #
+  # seed          = a seed object as defined in model_classes.py
+  # seed_map      = an array where rectangular regions are given by cell values
+  # target_region = the cell value that picks out the desired rectangular region
+  #
+  # find the size of the seed
+  num_rows = seed_map.shape[0]
+  num_cols = seed_map.shape[1]
+  # check that seed and seed map have the same size
+  assert seed.cells.shape[0] == seed_map.shape[0]
+  assert seed.cells.shape[1] == seed_map.shape[1]
+  # make sure target_region is in seed_map
+  assert target_region in seed_map
+  # find first_row containing target_region
+  first_row = 0
+  for row in range(num_rows):
+    if (target_region in seed_map[row, :]):
+      first_row = row
+      break
+  # find last_row containing target_region
+  last_row = num_rows - 1
+  for row in range(num_rows-1, -1, -1):
+    if (target_region in seed_map[row, :]):
+      last_row = row
+      break
+  # find first_col containing target_region
+  first_col = 0
+  for col in range(num_cols):
+    if (target_region in seed_map[:, col]):
+      first_col = col
+      break
+  # find last_col containing target_region
+  last_col = num_cols - 1
+  for col in range(num_cols-1, -1, -1):
+    if (target_region in seed_map[:, col]):
+      last_col = col
+      break
+  # make a new seed with the new reduced size
+  new_num_rows = last_row - first_row + 1 
+  new_num_cols = last_col - first_col + 1
+  new_seed = mclass.Seed(new_num_rows, new_num_cols, 0)
+  # for each cell in seed_map that matches the value target_region,
+  # if the corresponding value in seed is not zero, then write
+  # a value of one into the appropriate location in new_seed
+  for row in range(first_row, last_row + 1):
+    for col in range(first_col, last_col + 1):
+      if (seed.cells[row][col] > 0):
+        new_seed.cells[row - first_row, col - first_col] = 1
+  # return new_seed
+  return new_seed
+#
+# measure_growth_life(g, seed, num_steps) -- return growth
+#
+def measure_growth_life(g, seed, num_steps):
+  """
+  Given a Game of Life seed pattern (two states only, 0 and 1),
+  run the pattern for num_steps and calculate its growth.
+  """
+  g.setalgo("QuickLife")
+  g.autoupdate(False)
+  g.new("Life")
+  g.setrule("Life")
+  # state 0 = white, state 1 = black
+  g.setcolors([0,255,255,255,1,0,0,0])
+  for x in range(seed.xspan):
+    for y in range(seed.yspan):
+      g.setcell(x, y, seed.cells[x][y])
+  g.update()
+  start_size = int(g.getpop())
+  g.run(num_steps)
+  g.update()
+  end_size = int(g.getpop())
+  growth = end_size - start_size
+  return growth
+#
+# measure_consistent_growth(g, seed, test_num_steps)
+#
+def measure_consistent_growth(g, seed, test_num_steps):
+  """
+  Given a Game of Life seed pattern (two states only, 0 and 1),
+  run the pattern for num_steps and calculate a score that
+  rewards early consistent growth.
+  """
+  g.setalgo("QuickLife")
+  g.autoupdate(False)
+  g.new("Life")
+  g.setrule("Life")
+  # state 0 = white, state 1 = black
+  g.setcolors([0,255,255,255,1,0,0,0])
+  for x in range(seed.xspan):
+    for y in range(seed.yspan):
+      g.setcell(x, y, seed.cells[x][y])
+  g.update()
+  size_before = int(g.getpop())
+  delta_positive = 0
+  for step in range(test_num_steps):
+    g.run(1)
+    g.update()
+    size_after = int(g.getpop())
+    if (size_after > size_before):
+      delta_positive += 1
+    size_before = size_after
+  return delta_positive / test_num_steps
 #
 # hash_seed(seed) -- returns a hash key for seed
 #
