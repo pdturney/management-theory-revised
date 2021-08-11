@@ -1,7 +1,7 @@
 """
 Model Classes
 
-Peter Turney, April 29, 2021
+Peter Turney, August 10, 2021
 """
 import golly as g
 import model_parameters as mparam
@@ -414,6 +414,20 @@ class Seed:
     for x in range(self.xspan):
       for y in range(self.yspan):
         if (self.cells[x][y] == 1):
+          count = count + 1
+    return count
+  #
+  # count_colour(self, colour) -- returns number of given colour in a seed
+  #
+  def count_colour(self, colour):
+    """
+    Count the number of cells of a given colour, where the colour
+    is represented by a number (but not zero).
+    """
+    count = 0
+    for x in range(self.xspan):
+      for y in range(self.yspan):
+        if (self.cells[x][y] == colour):
           count = count + 1
     return count
   #

@@ -1,7 +1,7 @@
 """
 Model Functions
 
-Peter Turney, August 4, 2021
+Peter Turney, August 10, 2021
 """
 import golly as g
 import model_classes as mclass
@@ -111,10 +111,47 @@ def count_pops(g):
       a = g.getcell(x, y)
       if (a == 1) or (a == 3):
         count1 += 1
-      if (a == 2) or (a == 4):
+      elif (a == 2) or (a == 4):
         count2 += 1
   #
   return [count1, count2]
+#
+# count_colours(g) -- returns [red, blue, orange, green]
+#
+def count_colours(g):
+  """
+  Count the number of cells for each of the colours. We only
+  care about red, blue, orange, and green.
+  """
+  #
+  # 0 = dead                       = white
+  # 1 = player 1 alone             = red
+  # 2 = player 2 alone             = blue
+  # 3 = player 1 with interaction  = orange (red + yellow)
+  # 4 = player 2 with interaction  = green (blue + yellow)
+  # 5 = border marker              = purple
+  #
+  # find the min and max of the Golly toroid coordinates
+  [g_xmin, g_xmax, g_ymin, g_ymax] = get_minmax(g)
+  #
+  red    = 0
+  blue   = 0
+  orange = 0
+  green  = 0
+  #
+  for x in range(g_xmin, g_xmax):
+    for y in range(g_ymin, g_ymax):
+      a = g.getcell(x, y)
+      if (a == 1):
+        red += 1
+      elif (a == 2):
+        blue += 1
+      elif (a == 3):
+        orange += 1
+      elif (a == 4):
+        green += 1
+  #
+  return [red, blue, orange, green]
 #
 # initialize_population(pop_size, s_xspan, s_yspan, seed_density)
 # -- returns population
@@ -296,6 +333,125 @@ def score_pair(g, seed1, seed2, width_factor, height_factor, \
       count2 = count2 - s2.num_living
     else:
       count2 = 0
+    #
+    # Now we are ready to determine the winner.
+    #
+    if (count1 > count2):
+      score1 = score1 + 1.0
+    elif (count2 > count1):
+      score2 = score2 + 1.0
+    else:
+      score1 = score1 + 0.5
+      score2 = score2 + 0.5
+    #
+  #
+  # Normalize the scores
+  #
+  score1 = score1 / num_trials
+  score2 = score2 / num_trials
+  #
+  return [score1, score2]
+#
+# score_management(g, seed1, seed2, width_factor, height_factor, \
+#   time_factor, num_trials) -- returns [score1, score2]
+#
+def score_management(g, seed1, seed2, width_factor, height_factor, \
+  time_factor, num_trials):
+  """
+  Put seed1 and seed2 into the Management Game g and see which 
+  one wins and which one loses, based on orange and green counts. 
+  Note that this function does not update the histories of the seeds. 
+  For updating histories, use update_history().
+  """
+  #
+  # Make copies of the original two seeds, so that the following
+  # manipulations do not change the originals.
+  #
+  s1 = copy.deepcopy(seed1)
+  s2 = copy.deepcopy(seed2)
+  #
+  # Check the number of living cells in the seeds. If the number
+  # is zero, it is probably a mistake. The number is initially
+  # set to zero and it should be updated when the seed is filled
+  # with living cells. We could use s1.count_ones() here, but
+  # we're trying to be efficient by counting only once and 
+  # storing the count.
+  #
+  assert s1.num_living > 0
+  assert s2.num_living > 0
+  #
+  # Initialize scores
+  #
+  score1 = 0.0
+  score2 = 0.0
+  #
+  # Run several trials with different rotations and locations.
+  #
+  for trial in range(num_trials):
+    #
+    # Randomly rotate and flip s1 and s2
+    #
+    s1 = s1.random_rotate()
+    s2 = s2.random_rotate()
+    #
+    # Switch cells in the second seed (s2) from state 1 (red) to state 2 (blue)
+    #
+    s2.red2blue()
+    #
+    # Rule file
+    #
+    rule_name = "Management"
+    #
+    # Set toroidal universe of height yspan and width xspan
+    # Base the s1ze of the universe on the s1zes of the seeds
+    #
+    # g = the Golly universe
+    #
+    [g_width, g_height, g_time] = dimensions(s1, s2, \
+      width_factor, height_factor, time_factor)
+    #
+    # set algorithm -- "HashLife" or "QuickLife"
+    #
+    g.setalgo("QuickLife") # use "HashLife" or "QuickLife"
+    g.autoupdate(False) # do not update the view unless requested
+    g.new(rule_name) # initialize cells to state 0
+    g.setrule(rule_name + ":T" + str(g_width) + "," + str(g_height)) # make a toroid
+    #
+    # Find the min and max of the Golly toroid coordinates
+    #
+    [g_xmin, g_xmax, g_ymin, g_ymax] = get_minmax(g)
+    #
+    # Set magnification for Golly viewer
+    #
+    g.setmag(set_mag(g))
+    #
+    # Randomly place seed s1 somewhere in the left s1de of the toroid
+    #
+    s1.insert(g, g_xmin, -1, g_ymin, g_ymax)
+    #
+    # Randomly place seed s2 somewhere in the right s1de of the toroid
+    #
+    s2.insert(g, +1, g_xmax, g_ymin, g_ymax)
+    #
+    # Run for a fixed number of generations.
+    # Base the number of generations on the sizes of the seeds.
+    # Note that these are generations ins1de one Game of Life, not
+    # generations in an evolutionary sense. Generations in the 
+    # Game of Life correspond to growth and decay of a phenotype,
+    # whereas generations in evolution correspond to the reproduction
+    # of a genotype.
+    #
+    g.run(g_time) # run the Game of Life for g_time time steps
+    g.update() # need to update Golly to get counts
+    #
+    # Count orange cells for red (s1, colour 1) and count green cells
+    # for blue (s2, colour 2). We don't need to subtract their initial
+    # count at t = 0, because their initial count is necessarily zero.
+    #
+    [red, blue, orange, green] = count_colours(g)
+    #
+    count1 = orange # the red seed is rewarded for orange cells
+    count2 = green  # the blue seed is rewarded for green cells
     #
     # Now we are ready to determine the winner.
     #
