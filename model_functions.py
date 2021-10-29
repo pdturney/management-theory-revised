@@ -1,7 +1,7 @@
 """
 Model Functions
 
-Peter Turney, August 10, 2021
+Peter Turney, October 28, 2021
 """
 import golly as g
 import model_classes as mclass
@@ -1974,8 +1974,13 @@ def growth_tensor(g, seed_list, step_size, max_seeds, num_steps,
     #
     num_regions = np.amax(seed_map)
     #
-    # this script assumes we want exactly two parts in a fusion; we use
-    # other scripts for cases where there are more than two parts
+    # the actual number of parts in the current seed is given by
+    # num_regions, but the desired number of parts is given by
+    # num_parts (a parameter in growth_tensor() function)
+    #
+    # we skip over a seed if the actual number of parts
+    # (num_regions) does not equal the desired number of parts
+    # (num_parts)
     #
     if (num_regions != num_parts):
       continue
